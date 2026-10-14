@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
@@ -23,12 +24,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
-
-    private final List<Note> allNotes= new ArrayList<>();
+    
     private NoteAdapter noteAdapter;
-    private NotesDatabase database;
-    private final ExecutorService databaseExecutor =
-            Executors.newSingleThreadExecutor();
+    private NotesViewModel viewModel;
 
     private final ActivityResultLauncher<Intent> noteEditorLauncher =
             registerForActivityResult(
@@ -56,32 +54,10 @@ public class MainActivity extends AppCompatActivity {
                             //now saving the data to the database
                             Note note = new Note(title, body);
                             if (noteId == -1) {
-                                databaseExecutor.execute(() -> {
-                                    long newId = database.noteDao().insert(note);
-                                    note.setId((int) newId);
-
-                                    runOnUiThread(() -> {
-                                        allNotes.add(0, note);
-                                        noteAdapter.notifyItemInserted(0);
-                                        Toast.makeText(this, "Saved: " + title, Toast.LENGTH_SHORT).show();
-                                    });
-                                });
+                                viewModel.insert(note);
                             } else {
                                 note.setId(noteId);
-
-                                databaseExecutor.execute(() -> {
-                                    database.noteDao().update(note);
-
-                                    runOnUiThread(() -> {
-                                        for (int i = 0; i < allNotes.size(); i++) {
-                                            if (allNotes.get(i).getId() == noteId) {
-                                                allNotes.set(i, note);
-                                                noteAdapter.notifyItemChanged(i);
-                                                break;
-                                            }
-                                        }
-                                    });
-                                });
+                                viewModel.update(note);
                             }
                         }
                     }
@@ -98,15 +74,11 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        database = Room.databaseBuilder(
-                getApplicationContext(),
-                NotesDatabase.class,
-                "notes_db"
-        ).build();
+        viewModel = new ViewModelProvider(this).get(NotesViewModel.class);
 
         RecyclerView recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL));
-        noteAdapter = new NoteAdapter(allNotes, note ->
+        noteAdapter = new NoteAdapter(note ->
         {
             Intent intent = new Intent(this, NoteEditorActivity.class);
             intent.putExtra("note_id", note.getId());
@@ -117,15 +89,8 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setAdapter(noteAdapter);
 
         //Loading the data from the Room database
-        databaseExecutor.execute(() -> {
-            List<Note> savedNotes = database.noteDao().getAllNotes();
-
-            runOnUiThread(() -> {
-                allNotes.addAll(savedNotes);
-                if (!savedNotes.isEmpty()) {
-                    noteAdapter.notifyItemRangeInserted(0, savedNotes.size());
-                }
-            });
+        viewModel.getNotes().observe(this, notes -> {
+            noteAdapter.submitList(notes);
         });
 
         findViewById(R.id.floatingActionButton).setOnClickListener(v -> {
@@ -139,23 +104,7 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle("Delete note?")
                 .setMessage(note.getTitle())
                 .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> deleteNote(note))
+                .setPositiveButton("Delete", (dialog, which) -> viewModel.delete(note))
                 .show();
-    }
-
-    private void deleteNote(Note note) {
-        databaseExecutor.execute(() -> {
-            database.noteDao().delete(note);
-
-            runOnUiThread(() -> {
-                for (int i = 0; i < allNotes.size(); i++) {
-                    if (allNotes.get(i).getId() == note.getId()) {
-                        allNotes.remove(i);
-                        noteAdapter.notifyItemRemoved(i);
-                        break;
-                    }
-                }
-            });
-        });
     }
 }

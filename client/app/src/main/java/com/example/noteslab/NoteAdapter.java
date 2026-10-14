@@ -4,23 +4,38 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.List;
+import java.util.Objects;
 
-public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder>{
+public class NoteAdapter extends ListAdapter<Note, NoteAdapter.NoteViewHolder> {
 
-    private final List<Note> allNotes;
+    private static final DiffUtil.ItemCallback<Note> NOTE_DIFF =
+            new DiffUtil.ItemCallback<Note>() {
+                @Override
+                public boolean areItemsTheSame(@NonNull Note oldNote,
+                                               @NonNull Note newNote) {
+                    return oldNote.getId() == newNote.getId();
+                }
+
+                @Override
+                public boolean areContentsTheSame(@NonNull Note oldNote,
+                                                  @NonNull Note newNote) {
+                    return Objects.equals(oldNote.getTitle(), newNote.getTitle())
+                            && Objects.equals(oldNote.getBody(), newNote.getBody());
+                }
+            };
+
     private final OnNoteClickListener clickListener;
     private final OnNoteLongClickListener longClickListener;
 
-    public NoteAdapter(List<Note> allNotes,
-                       OnNoteClickListener clickListener,
+    public NoteAdapter(OnNoteClickListener clickListener,
                        OnNoteLongClickListener longClickListener) {
-        this.allNotes = allNotes;
+        super(NOTE_DIFF);
         this.clickListener = clickListener;
         this.longClickListener = longClickListener;
     }
@@ -35,34 +50,26 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
 
     @NonNull
     @Override
-    public NoteViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_layout, parent, false);
+    public NoteViewHolder onCreateViewHolder(@NonNull ViewGroup parent,
+                                             int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_layout, parent, false);
         return new NoteViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(
-            @NonNull NoteViewHolder holder, int position) {
-
-        Note note = allNotes.get(position);
-
-        // Your two lines go here:
+    public void onBindViewHolder(@NonNull NoteViewHolder holder, int position) {
+        Note note = getItem(position);
         holder.title.setText(note.getTitle());
         holder.body.setText(note.getBody());
 
         holder.itemView.setOnClickListener(v ->
-                clickListener.onNoteClick(note)
-        );
+                clickListener.onNoteClick(note));
 
         holder.itemView.setOnLongClickListener(v -> {
             longClickListener.onNoteLongClick(note);
             return true;
         });
-    }
-
-    @Override
-    public int getItemCount() {
-        return allNotes.size();
     }
 
     static class NoteViewHolder extends RecyclerView.ViewHolder {
