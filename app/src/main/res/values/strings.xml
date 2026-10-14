@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">NotesLab</string>
+    <string name="your_thoughts_none_place">Your thoughts, \nOne Place</string>
+    <string name="add_note">Add note</string>
+</resources>
